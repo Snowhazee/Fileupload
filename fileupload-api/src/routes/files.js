@@ -5,6 +5,7 @@ const { upload, UPLOAD_DIR } = require('../middleware/upload');
 const verifyFileType = require('../middleware/verifyFileType');
 
 const router = express.Router();
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const toDto = (req, f) => ({
   filename: f.filename,
   originalName: f.originalname,
@@ -28,13 +29,36 @@ router.post('/', upload.single('file'), verifyFileType, (req, res) => {
 router.post('/multiple', upload.array('files', 5), verifyFileType, (req, res) => {
   if (!req.files?.length) {
     return res.status(400).json({
-      error: 'กรุณาแนบไฟล์ในฟิลฟิ ด์ files',
+      error: 'กรุณาแนบไฟล์ในฟิลด์ files',
     });
   }
   res.status(201).json({
     count: req.files.length,
     files: req.files.map((f) => toDto(req, f)),
   });
+});
+
+// รายการไฟล์รูปภาพ
+router.get('/multiple', async (req, res, next) => {
+  try {
+    const names = await fs.readdir(UPLOAD_DIR);
+    const imageNames = names.filter((name) =>
+      IMAGE_EXTENSIONS.has(path.extname(name).toLowerCase())
+    );
+    const files = await Promise.all(
+      imageNames.map(async (name) => {
+        const stat = await fs.stat(safePath(name));
+        return {
+          filename: name,
+          size: stat.size,
+          uploadedAt: stat.birthtime,
+        };
+      })
+    );
+    res.json({ count: files.length, files });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // รายการไฟล์
